@@ -1,6 +1,8 @@
-import socket
+ import socket
 import argparse
+import json
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor
 
 
 SERVICES = {
@@ -19,76 +21,115 @@ SERVICES = {
 def scan_port(target, port):
 
     try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock = socket.socket(
+            socket.AF_INET,
+            socket.SOCK_STREAM
+        )
+
         sock.settimeout(0.5)
 
-        result = sock.connect_ex((target, port))
+        result = sock.connect_ex(
+            (target, port)
+        )
 
         sock.close()
 
         if result == 0:
-            service = SERVICES.get(port, "Unknown")
-            return f"[OPEN] {port} ({service})"
-
-        return None
+            return {
+                "port": port,
+                "service": SERVICES.get(port, "Unknown"),
+                "status": "open"
+            }
 
     except:
-        return None
+        pass
+
+    return None
 
 
 def main():
 
     parser = argparse.ArgumentParser(
-        description="Cyber Tools Lab Port Scanner v4"
+        description="Cyber Tools Lab Scanner v5"
     )
 
     parser.add_argument(
         "-t",
         "--target",
-        required=True
+        required=True,
+        help="Target IP"
     )
 
     parser.add_argument(
         "-p",
         "--ports",
-        default="1-100"
+        default="1-100",
+        help="Port range"
     )
 
     args = parser.parse_args()
 
+
     start, end = args.ports.split("-")
 
-    start = int(start)
-    end = int(end)
+    ports = range(
+        int(start),
+        int(end)+1
+    )
 
-    print("\nCyber Tools Lab Scanner v4")
+
+    print("\n=== Cyber Tools Lab Scanner v5 ===")
     print("Target:", args.target)
-    print("Started:", datetime.now())
+    print("Time:", datetime.now())
+
 
     results = []
 
-    for port in range(start, end + 1):
 
-        result = scan_port(args.target, port)
+    with ThreadPoolExecutor(
+        max_workers=50
+    ) as executor:
 
-        if result:
-            print(result)
-            results.append(result)
-
-
-    filename = f"tools/reports/report_{args.target}.txt"
-
-    with open(filename, "w") as file:
-
-        file.write(
-            "Cyber Tools Lab Scan Report\n"
+        scans = executor.map(
+            lambda p: scan_port(args.target,p),
+            ports
         )
 
-        for item in results:
-            file.write(item + "\n")
+
+        for result in scans:
+
+            if result:
+                print(
+                    f"[OPEN] {result['port']} - {result['service']}"
+                )
+
+                results.append(result)
 
 
-    print("\nSaved:", filename)
+    report = {
+        "target": args.target,
+        "scan_time": str(datetime.now()),
+        "open_ports": results
+    }
+
+
+    filename = (
+        "tools/reports/report.json"
+    )
+
+
+    with open(filename,"w") as file:
+        json.dump(
+            report,
+            file,
+            indent=4
+        )
+
+
+    print(
+        "\nReport saved:",
+        filename
+    )
 
 
 if __name__ == "__main__":
