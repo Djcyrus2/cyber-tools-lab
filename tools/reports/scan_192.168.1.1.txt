@@ -1,6 +1,6 @@
 Cyber Tools Lab Scan Report
 Target: 192.168.1.1
-Time: 2026-07-21 12:35:39.726607
+Time: 2026-07-21 12:47:28.894011
 
 Port 21: CLOSED
 Port 22: CLOSED

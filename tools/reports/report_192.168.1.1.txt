@@ -1,0 +1,3 @@
+Cyber Tools Lab Scan Report
+[OPEN] 53 (DNS)
+[OPEN] 80 (HTTP)
