@@ -1,13 +1,16 @@
 import socket
 from datetime import datetime
+
 from rich.console import Console
 from rich.table import Table
 
 from .database import save_scan, create_database
 from .exporter import export_csv
+from .banner import grab_banner
+from .services import SERVICES
 
 
-VERSION = "12.0.0"
+VERSION = "14.0.0"
 
 console = Console()
 
@@ -29,13 +32,29 @@ def scan_port(target, port):
 
         sock.close()
 
+
         if result == 0:
-            return port
+
+            return {
+                "port": port,
+                "service": SERVICES.get(
+                    port,
+                    "Unknown"
+                ),
+                "banner": grab_banner(
+                    target,
+                    port
+                )
+            }
+
 
     except Exception:
+
         pass
 
+
     return None
+
 
 
 def validate_port_range(port_range):
@@ -47,10 +66,14 @@ def validate_port_range(port_range):
             port_range.split("-")
         )
 
+
         if start < 1 or end > 65535 or start > end:
+
             raise ValueError
 
+
         return start, end
+
 
     except ValueError:
 
@@ -61,86 +84,154 @@ def validate_port_range(port_range):
         return None, None
 
 
+
 def start_scan(target, port_range):
 
     create_database()
+
 
     start, end = validate_port_range(
         port_range
     )
 
+
     if start is None:
+
         return
+
+
 
     console.rule(
         f"[bold cyan]Cyber Tools Lab Scanner v{VERSION}"
     )
 
+
     console.print(
         f"[green]Target:[/green] {target}"
     )
+
 
     console.print(
         f"[green]Started:[/green] {datetime.now()}"
     )
 
+
     table = Table(
-        title="Open Ports"
+        title="Service Detection"
     )
+
 
     table.add_column(
         "Port",
         style="cyan"
     )
 
+
     table.add_column(
-        "Status",
+        "Service",
+        style="yellow"
+    )
+
+
+    table.add_column(
+        "Banner",
         style="green"
     )
 
+
     open_ports = []
 
-    total_ports = end - start + 1
+
 
     for port in range(
         start,
         end + 1
     ):
 
+
         result = scan_port(
             target,
             port
         )
 
+
         if result:
 
-            table.add_row(
-                str(result),
-                "OPEN"
+
+            open_ports.append(
+                result["port"]
             )
 
-            open_ports.append(result)
+
+            table.add_row(
+
+                str(result["port"]),
+
+                result["service"],
+
+                result["banner"][:50]
+
+            )
+
 
             save_scan(
+
                 target,
-                result,
-                "OPEN"
+
+                result["port"],
+
+                result["service"]
+
             )
+
+
 
     console.print(table)
 
-    console.rule("[bold green]Summary")
 
-    console.print(
-        f"Ports Scanned : {total_ports}"
+
+    console.rule(
+        "[bold green]Scan Summary"
     )
 
+
     console.print(
-        f"Open Ports    : {len(open_ports)}"
+        f"Ports Scanned: {end-start+1}"
     )
 
-    export_csv(open_ports)
 
     console.print(
-        "\n[bold green]CSV report saved to reports/report.csv[/bold green]"
+        f"Open Ports: {len(open_ports)}"
+    )
+
+
+
+    if open_ports:
+
+        console.print(
+            "Open Ports:",
+            ", ".join(
+                map(
+                    str,
+                    open_ports
+                )
+            )
+        )
+
+
+    else:
+
+        console.print(
+            "No open ports found."
+        )
+
+
+
+    export_csv(
+        open_ports
+    )
+
+
+    console.print(
+        "\n[bold green]Report saved to reports/report.csv[/bold green]"
     )
