@@ -1,4 +1,3 @@
-import socket
 from datetime import datetime
 
 from rich.console import Console
@@ -6,54 +5,14 @@ from rich.table import Table
 
 from .database import save_scan, create_database
 from .exporter import export_csv
-from .banner import grab_banner
-from .services import SERVICES
+from .thread_scanner import threaded_scan
+from .os_detect import detect_os
+from .vulnerability import check_vulnerability
 
 
-VERSION = "14.0.0"
+VERSION = "17.0.0"
 
 console = Console()
-
-
-def scan_port(target, port):
-
-    try:
-
-        sock = socket.socket(
-            socket.AF_INET,
-            socket.SOCK_STREAM
-        )
-
-        sock.settimeout(1)
-
-        result = sock.connect_ex(
-            (target, port)
-        )
-
-        sock.close()
-
-
-        if result == 0:
-
-            return {
-                "port": port,
-                "service": SERVICES.get(
-                    port,
-                    "Unknown"
-                ),
-                "banner": grab_banner(
-                    target,
-                    port
-                )
-            }
-
-
-    except Exception:
-
-        pass
-
-
-    return None
 
 
 
@@ -67,7 +26,11 @@ def validate_port_range(port_range):
         )
 
 
-        if start < 1 or end > 65535 or start > end:
+        if (
+            start < 1
+            or end > 65535
+            or start > end
+        ):
 
             raise ValueError
 
@@ -78,10 +41,11 @@ def validate_port_range(port_range):
     except ValueError:
 
         console.print(
-            "[red]Invalid port range.[/red]"
+            "[red]Invalid port range. Example: 1-1000[/red]"
         )
 
         return None, None
+
 
 
 
@@ -116,8 +80,26 @@ def start_scan(target, port_range):
     )
 
 
+    # OS Detection
+
+    os_info = detect_os(
+        target
+    )
+
+
+    console.print(
+        f"[green]OS Guess:[/green] {os_info}"
+    )
+
+
+    console.print(
+        "[yellow]Scanning with 100 threads...[/yellow]"
+    )
+
+
+
     table = Table(
-        title="Service Detection"
+        title="Security Scan Results"
     )
 
 
@@ -139,54 +121,67 @@ def start_scan(target, port_range):
     )
 
 
+    table.add_column(
+        "Risk",
+        style="red"
+    )
+
+
+
+    results = threaded_scan(
+        target,
+        start,
+        end,
+        workers=100
+    )
+
+
+
     open_ports = []
 
 
 
-    for port in range(
-        start,
-        end + 1
-    ):
+    for result in results:
 
 
-        result = scan_port(
-            target,
-            port
+        open_ports.append(
+            result["port"]
         )
 
 
-        if result:
+        vulnerability = check_vulnerability(
+            result["service"]
+        )
 
 
-            open_ports.append(
-                result["port"]
-            )
+        table.add_row(
+
+            str(result["port"]),
+
+            result["service"],
+
+            result["banner"][:40],
+
+            vulnerability["risk"]
+
+        )
 
 
-            table.add_row(
+        save_scan(
 
-                str(result["port"]),
+            target,
 
-                result["service"],
+            result["port"],
 
-                result["banner"][:50]
+            result["service"]
 
-            )
-
-
-            save_scan(
-
-                target,
-
-                result["port"],
-
-                result["service"]
-
-            )
+        )
 
 
 
-    console.print(table)
+    console.print(
+        table
+    )
 
 
 
@@ -196,7 +191,7 @@ def start_scan(target, port_range):
 
 
     console.print(
-        f"Ports Scanned: {end-start+1}"
+        f"Ports Scanned: {end - start + 1}"
     )
 
 
@@ -217,7 +212,6 @@ def start_scan(target, port_range):
                 )
             )
         )
-
 
     else:
 
