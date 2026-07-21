@@ -1,26 +1,50 @@
  import socket
 import argparse
 import json
+import html
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
+from logger import write_log
 
 
 SERVICES = {
     21: "FTP",
     22: "SSH",
     23: "Telnet",
-    25: "SMTP",
     53: "DNS",
     80: "HTTP",
-    443: "HTTPS",
-    3306: "MySQL",
-    3389: "RDP"
+    443: "HTTPS"
 }
+
+
+def get_banner(target, port):
+
+    try:
+        sock = socket.socket(
+            socket.AF_INET,
+            socket.SOCK_STREAM
+        )
+
+        sock.settimeout(2)
+
+        sock.connect((target, port))
+
+        banner = sock.recv(1024).decode(
+            errors="ignore"
+        )
+
+        sock.close()
+
+        return banner.strip()
+
+    except:
+        return "No banner"
 
 
 def scan_port(target, port):
 
     try:
+
         sock = socket.socket(
             socket.AF_INET,
             socket.SOCK_STREAM
@@ -34,103 +58,165 @@ def scan_port(target, port):
 
         sock.close()
 
+
         if result == 0:
+
             return {
                 "port": port,
-                "service": SERVICES.get(port, "Unknown"),
-                "status": "open"
+                "service": SERVICES.get(
+                    port,
+                    "Unknown"
+                ),
+                "banner": get_banner(
+                    target,
+                    port
+                )
             }
+
 
     except:
         pass
 
+
     return None
+
+
+
+def create_html(data):
+
+    page = """
+    <html>
+    <head>
+    <title>Cyber Tools Lab Report</title>
+    </head>
+    <body>
+    <h1>Scan Report</h1>
+    """
+
+    page += f"<h3>Target: {data['target']}</h3>"
+
+
+    for item in data["ports"]:
+
+        page += f"""
+        <p>
+        Port: {item['port']}<br>
+        Service: {html.escape(item['service'])}<br>
+        Banner: {html.escape(item['banner'])}
+        </p>
+        """
+
+
+    page += "</body></html>"
+
+
+    with open(
+        "tools/reports/report.html",
+        "w"
+    ) as file:
+
+        file.write(page)
+
 
 
 def main():
 
-    parser = argparse.ArgumentParser(
-        description="Cyber Tools Lab Scanner v5"
-    )
+    parser = argparse.ArgumentParser()
 
     parser.add_argument(
         "-t",
         "--target",
-        required=True,
-        help="Target IP"
+        required=True
     )
 
     parser.add_argument(
         "-p",
         "--ports",
-        default="1-100",
-        help="Port range"
+        default="1-100"
     )
+
 
     args = parser.parse_args()
 
 
-    start, end = args.ports.split("-")
+    start,end = args.ports.split("-")
 
-    ports = range(
-        int(start),
-        int(end)+1
+
+    results=[]
+
+
+    write_log(
+        f"Started scan {args.target}"
     )
-
-
-    print("\n=== Cyber Tools Lab Scanner v5 ===")
-    print("Target:", args.target)
-    print("Time:", datetime.now())
-
-
-    results = []
 
 
     with ThreadPoolExecutor(
         max_workers=50
     ) as executor:
 
+
         scans = executor.map(
-            lambda p: scan_port(args.target,p),
-            ports
+            lambda p: scan_port(
+                args.target,
+                p
+            ),
+            range(
+                int(start),
+                int(end)+1
+            )
         )
 
 
         for result in scans:
 
             if result:
+
                 print(
-                    f"[OPEN] {result['port']} - {result['service']}"
+                    "[OPEN]",
+                    result["port"]
                 )
 
                 results.append(result)
 
 
-    report = {
-        "target": args.target,
-        "scan_time": str(datetime.now()),
-        "open_ports": results
+
+    data={
+
+        "target":args.target,
+
+        "time":str(datetime.now()),
+
+        "ports":results
+
     }
 
 
-    filename = (
-        "tools/reports/report.json"
-    )
+    with open(
+        "tools/reports/report.json",
+        "w"
+    ) as file:
 
-
-    with open(filename,"w") as file:
         json.dump(
-            report,
+            data,
             file,
             indent=4
         )
 
 
-    print(
-        "\nReport saved:",
-        filename
+    create_html(data)
+
+
+    write_log(
+        "Scan completed"
     )
 
 
-if __name__ == "__main__":
+    print(
+        "Reports created"
+    )
+
+
+
+if __name__=="__main__":
+
     main()
