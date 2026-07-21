@@ -1,0 +1,11 @@
+Cyber Tools Lab Scan Report
+Target: 192.168.1.1
+Time: 2026-07-21 12:35:39.726607
+
+Port 21: CLOSED
+Port 22: CLOSED
+Port 23: CLOSED
+Port 53: OPEN
+Port 80: OPEN
+Port 443: OPEN
+Port 8080: CLOSED
