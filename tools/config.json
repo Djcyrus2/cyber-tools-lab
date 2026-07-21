@@ -1,0 +1,5 @@
+{
+    "default_ports": "1-1000",
+    "timeout": 1,
+    "threads": 50
+}

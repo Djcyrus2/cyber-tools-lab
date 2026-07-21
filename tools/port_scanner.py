@@ -1,7 +1,6 @@
  import socket
 import argparse
 import json
-import html
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 from logger import write_log
@@ -11,37 +10,23 @@ SERVICES = {
     21: "FTP",
     22: "SSH",
     23: "Telnet",
+    25: "SMTP",
     53: "DNS",
     80: "HTTP",
-    443: "HTTPS"
+    443: "HTTPS",
+    3306: "MySQL",
+    3389: "RDP"
 }
 
 
-def get_banner(target, port):
+def load_config():
 
-    try:
-        sock = socket.socket(
-            socket.AF_INET,
-            socket.SOCK_STREAM
-        )
-
-        sock.settimeout(2)
-
-        sock.connect((target, port))
-
-        banner = sock.recv(1024).decode(
-            errors="ignore"
-        )
-
-        sock.close()
-
-        return banner.strip()
-
-    except:
-        return "No banner"
+    with open("tools/config.json", "r") as file:
+        return json.load(file)
 
 
-def scan_port(target, port):
+
+def scan_port(target, port, timeout):
 
     try:
 
@@ -50,7 +35,7 @@ def scan_port(target, port):
             socket.SOCK_STREAM
         )
 
-        sock.settimeout(0.5)
+        sock.settimeout(timeout)
 
         result = sock.connect_ex(
             (target, port)
@@ -67,14 +52,12 @@ def scan_port(target, port):
                     port,
                     "Unknown"
                 ),
-                "banner": get_banner(
-                    target,
-                    port
-                )
+                "status": "OPEN"
             }
 
 
     except:
+
         pass
 
 
@@ -82,84 +65,64 @@ def scan_port(target, port):
 
 
 
-def create_html(data):
-
-    page = """
-    <html>
-    <head>
-    <title>Cyber Tools Lab Report</title>
-    </head>
-    <body>
-    <h1>Scan Report</h1>
-    """
-
-    page += f"<h3>Target: {data['target']}</h3>"
-
-
-    for item in data["ports"]:
-
-        page += f"""
-        <p>
-        Port: {item['port']}<br>
-        Service: {html.escape(item['service'])}<br>
-        Banner: {html.escape(item['banner'])}
-        </p>
-        """
-
-
-    page += "</body></html>"
-
-
-    with open(
-        "tools/reports/report.html",
-        "w"
-    ) as file:
-
-        file.write(page)
-
-
-
 def main():
 
-    parser = argparse.ArgumentParser()
+    config = load_config()
+
+
+    parser = argparse.ArgumentParser(
+        description="Cyber Tools Lab Scanner v7"
+    )
+
 
     parser.add_argument(
         "-t",
         "--target",
-        required=True
+        required=True,
+        help="Target IP address"
     )
+
 
     parser.add_argument(
         "-p",
         "--ports",
-        default="1-100"
+        default=config["default_ports"],
+        help="Port range example 1-1000"
     )
 
 
     args = parser.parse_args()
 
 
-    start,end = args.ports.split("-")
+    start, end = args.ports.split("-")
 
 
-    results=[]
+    print("\n=== Cyber Tools Lab Scanner v7 ===")
+    print("Target:", args.target)
+    print("Started:", datetime.now())
 
 
     write_log(
-        f"Started scan {args.target}"
+        f"Scan started: {args.target}"
     )
 
 
+    results = []
+
+
     with ThreadPoolExecutor(
-        max_workers=50
+        max_workers=config["threads"]
     ) as executor:
 
 
         scans = executor.map(
-            lambda p: scan_port(
+            lambda port:
+            scan_port(
                 args.target,
-                p
+                port,
+                config["timeout"]
             ),
+
             range(
                 int(start),
                 int(end)+1
@@ -172,21 +135,22 @@ def main():
             if result:
 
                 print(
-                    "[OPEN]",
-                    result["port"]
+                    f"[{result['status']}] "
+                    f"{result['port']} "
+                    f"- {result['service']}"
                 )
 
                 results.append(result)
 
 
 
-    data={
+    report = {
 
-        "target":args.target,
+        "target": args.target,
 
-        "time":str(datetime.now()),
+        "time": str(datetime.now()),
 
-        "ports":results
+        "results": results
 
     }
 
@@ -197,13 +161,10 @@ def main():
     ) as file:
 
         json.dump(
-            data,
+            report,
             file,
             indent=4
         )
-
-
-    create_html(data)
 
 
     write_log(
@@ -212,11 +173,10 @@ def main():
 
 
     print(
-        "Reports created"
+        "\nReport saved!"
     )
 
 
 
-if __name__=="__main__":
-
+if __name__ == "__main__":
     main()
