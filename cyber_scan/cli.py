@@ -1,36 +1,42 @@
 import argparse
 from .scanner import start_scan
+from .database import show_history
 
 
 def main():
 
     parser = argparse.ArgumentParser(
-        description="Cyber Tools Lab Scanner v8"
+        description="Cyber Tools Lab Scanner v9"
     )
+
 
     parser.add_argument(
         "-t",
-        "--target",
-        required=True,
-        help="Target IP address"
+        "--target"
     )
+
 
     parser.add_argument(
         "-p",
         "--ports",
-        default="1-100",
-        help="Port range"
+        default="1-100"
     )
 
 
     parser.add_argument(
-        "--version",
-        action="version",
-        version="Cyber Scanner v8.0.0"
+        "--history",
+        action="store_true",
+        help="Show previous scans"
     )
 
 
     args = parser.parse_args()
+
+
+    if args.history:
+
+        show_history()
+        return
 
 
     start_scan(

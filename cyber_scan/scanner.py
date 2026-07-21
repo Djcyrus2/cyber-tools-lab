@@ -1,11 +1,11 @@
 import socket
 from datetime import datetime
+from .database import save_scan, create_database
 
 
 def scan_port(target, port):
 
     try:
-
         sock = socket.socket(
             socket.AF_INET,
             socket.SOCK_STREAM
@@ -19,14 +19,11 @@ def scan_port(target, port):
 
         sock.close()
 
-
         if result == 0:
             return port
 
-
     except:
         pass
-
 
     return None
 
@@ -34,12 +31,11 @@ def scan_port(target, port):
 
 def start_scan(target, port_range):
 
+    create_database()
+
     start, end = port_range.split("-")
 
-
-    print(
-        "\nCyber Tools Lab Scanner v8"
-    )
+    print("\n=== Cyber Tools Lab Scanner v9 ===")
 
     print(
         "Target:",
@@ -52,9 +48,12 @@ def start_scan(target, port_range):
     )
 
 
+    open_ports = []
+
+
     for port in range(
         int(start),
-        int(end)+1
+        int(end) + 1
     ):
 
         result = scan_port(
@@ -70,6 +69,19 @@ def start_scan(target, port_range):
             )
 
 
+            open_ports.append(result)
+
+
+            save_scan(
+                target,
+                result,
+                "OPEN"
+            )
+
+
+    print("\nScan complete")
+
     print(
-        "\nScan complete"
+        "Open ports found:",
+        len(open_ports)
     )
