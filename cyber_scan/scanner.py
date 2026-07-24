@@ -8,9 +8,10 @@ from .exporter import export_csv
 from .thread_scanner import threaded_scan
 from .os_detect import detect_os
 from .vulnerability import check_vulnerability
+from .report_generator import generate_html_report
 
 
-VERSION = "17.0.0"
+VERSION = "20.0.0"
 
 console = Console()
 
@@ -25,13 +26,11 @@ def validate_port_range(port_range):
             port_range.split("-")
         )
 
-
         if (
             start < 1
             or end > 65535
             or start > end
         ):
-
             raise ValueError
 
 
@@ -49,7 +48,7 @@ def validate_port_range(port_range):
 
 
 
-def start_scan(target, port_range):
+def start_scan(target, port_range, workers=100):
 
     create_database()
 
@@ -80,7 +79,11 @@ def start_scan(target, port_range):
     )
 
 
-    # OS Detection
+    console.print(
+        f"[yellow]Threads:[/yellow] {workers}"
+    )
+
+
 
     os_info = detect_os(
         target
@@ -89,11 +92,6 @@ def start_scan(target, port_range):
 
     console.print(
         f"[green]OS Guess:[/green] {os_info}"
-    )
-
-
-    console.print(
-        "[yellow]Scanning with 100 threads...[/yellow]"
     )
 
 
@@ -116,28 +114,35 @@ def start_scan(target, port_range):
 
 
     table.add_column(
-        "Banner",
-        style="green"
-    )
-
-
-    table.add_column(
         "Risk",
         style="red"
     )
 
 
+    table.add_column(
+        "Banner",
+        style="green"
+    )
+
+
 
     results = threaded_scan(
+
         target,
+
         start,
+
         end,
-        workers=100
+
+        workers=workers
+
     )
 
 
 
     open_ports = []
+
+    scan_results = []
 
 
 
@@ -154,17 +159,33 @@ def start_scan(target, port_range):
         )
 
 
+
+        scan_results.append({
+
+            "port": result["port"],
+
+            "service": result["service"],
+
+            "risk": vulnerability["risk"],
+
+            "banner": result["banner"]
+
+        })
+
+
+
         table.add_row(
 
             str(result["port"]),
 
             result["service"],
 
-            result["banner"][:40],
+            vulnerability["risk"],
 
-            vulnerability["risk"]
+            result["banner"][:50]
 
         )
+
 
 
         save_scan(
@@ -190,6 +211,7 @@ def start_scan(target, port_range):
     )
 
 
+
     console.print(
         f"Ports Scanned: {end - start + 1}"
     )
@@ -204,13 +226,21 @@ def start_scan(target, port_range):
     if open_ports:
 
         console.print(
+
             "Open Ports:",
+
             ", ".join(
+
                 map(
+
                     str,
+
                     open_ports
+
                 )
+
             )
+
         )
 
     else:
@@ -226,6 +256,26 @@ def start_scan(target, port_range):
     )
 
 
+
+    html_report = generate_html_report(
+
+        target,
+
+        scan_results
+
+    )
+
+
     console.print(
-        "\n[bold green]Report saved to reports/report.csv[/bold green]"
+
+        f"[green]HTML Report:[/green] {html_report}"
+
+    )
+
+
+
+    console.print(
+
+        "\n[bold green]Scan Complete[/bold green]"
+
     )
